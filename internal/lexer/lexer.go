@@ -1,0 +1,379 @@
+package lexer
+
+import (
+	"fmt"
+	"radic/internal/token"
+)
+
+type Lexer struct {
+	source  string
+	start   int
+	current int
+	line    int
+	column  int
+}
+
+func New(source string) *Lexer {
+	return &Lexer{
+		source: source,
+		line:   1,
+		column: 1,
+	}
+}
+
+func (l *Lexer) Tokenize() []token.Token {
+	var tokens []token.Token
+
+	for {
+		tok := l.nextToken()
+
+		if tok.TokenType == token.TokenEOF {
+			return tokens
+		}
+
+		tokens = append(tokens, tok)
+	}
+}
+
+func (l *Lexer) nextToken() token.Token {
+	for {
+		l.skipWhitespace()
+		l.start = l.current
+
+		if l.isAtEnd() {
+			return l.makeToken(token.TokenEOF)
+		}
+
+		c := l.advance()
+
+		// NOTE: This sections is specially destined to handle comments, both single-line and multi-line.
+		if c == '/' {
+			if l.match('/') {
+				for !l.isAtEnd() && l.peek() != '\n' {
+					l.advance()
+				}
+
+				continue
+			}
+
+			if l.match('*') {
+				if !l.skipBlockComment() {
+					return l.errorToken("Unterminated block comment")
+				}
+
+				continue
+			}
+		}
+
+		switch c {
+		case '(':
+			return l.makeToken(token.TokenLeftParen)
+		case ')':
+			return l.makeToken(token.TokenRightParen)
+		case '[':
+			return l.makeToken(token.TokenLeftBracket)
+		case ']':
+			return l.makeToken(token.TokenRightBracket)
+		case '{':
+			return l.makeToken(token.TokenLeftBrace)
+		case '}':
+			return l.makeToken(token.TokenRightBrace)
+		case ',':
+			return l.makeToken(token.TokenComma)
+		case ';':
+			return l.makeToken(token.TokenSemicolon)
+		case '.':
+			return l.makeToken(token.TokenDot)
+		case '+':
+			if l.match('=') {
+				return l.makeToken(token.TokenPlusEquals)
+			}
+			if l.match('+') {
+				return l.makeToken(token.TokenPlusPlus)
+			}
+			return l.makeToken(token.TokenPlus)
+		case '-':
+			if l.match('=') {
+				return l.makeToken(token.TokenMinusEquals)
+			}
+			if l.match('-') {
+				return l.makeToken(token.TokenMinusMinus)
+			}
+			if l.match('>') {
+				return l.makeToken(token.TokenArrow)
+			}
+			return l.makeToken(token.TokenMinus)
+		case '*':
+			if l.match('=') {
+				return l.makeToken(token.TokenStarEquals)
+			}
+			return l.makeToken(token.TokenStar)
+		case '/':
+			if l.match('=') {
+				return l.makeToken(token.TokenSlashEquals)
+			}
+			return l.makeToken(token.TokenSlash)
+		case '%':
+			if l.match('=') {
+				return l.makeToken(token.TokenPercentEquals)
+			}
+			return l.makeToken(token.TokenPercent)
+		case '=':
+			if l.match('=') {
+				return l.makeToken(token.TokenEquals)
+			}
+			return l.makeToken(token.TokenAssign)
+		case '!':
+			if l.match('=') {
+				return l.makeToken(token.TokenNotEquals)
+			}
+			return l.errorToken("unexpected character '!'")
+		case '<':
+			if l.match('=') {
+				return l.makeToken(token.TokenLessThanEquals)
+			}
+			if l.match('<') {
+				return l.makeToken(token.TokenBitwiseLeftShift)
+			}
+			return l.makeToken(token.TokenLessThan)
+		case '>':
+			if l.match('=') {
+				return l.makeToken(token.TokenGreaterThanEquals)
+			}
+			if l.match('>') {
+				return l.makeToken(token.TokenBitwiseRightShift)
+			}
+			return l.makeToken(token.TokenGreaterThan)
+		case '&':
+			return l.makeToken(token.TokenBitwiseAnd)
+		case '|':
+			return l.makeToken(token.TokenBitwiseOr)
+		case '^':
+			return l.makeToken(token.TokenBitwiseXor)
+		case '~':
+			return l.makeToken(token.TokenBitwiseNot)
+		case '"':
+			return l.scanString()
+		case '\'':
+			return l.scanChar()
+		}
+
+		switch {
+		case isIdentifierStart(c):
+			return l.scanIdentifier()
+		case isDigit(c):
+			return l.scanNumber()
+		}
+
+		return l.errorToken(fmt.Sprintf("unexpected character %q", c))
+	}
+}
+
+func (l *Lexer) skipWhitespace() {
+	for !l.isAtEnd() {
+		switch l.source[l.current] {
+		case ' ', '\r', '\t', '\n':
+			l.advance()
+		default:
+			return
+		}
+	}
+}
+
+func (l *Lexer) skipBlockComment() bool {
+	for !l.isAtEnd() {
+		if l.peek() == '*' && l.peekNext() == '/' {
+			l.advance()
+			l.advance()
+			return true
+		}
+		l.advance()
+	}
+	return false
+}
+
+func (l *Lexer) scanIdentifier() token.Token {
+	for !l.isAtEnd() && isIdentifierPart(l.peek()) {
+		l.advance()
+	}
+	if kind, ok := keywords[l.source[l.start:l.current]]; ok {
+		return l.makeToken(kind)
+	}
+	return l.makeToken(token.TokenIdentifier)
+}
+
+func (l *Lexer) scanNumber() token.Token {
+	if l.source[l.start] == '0' {
+		switch l.peek() {
+		case 'x', 'X':
+			l.advance()
+			if !l.skipDigits(isHexDigit) {
+				return l.errorToken("invalid hex literal")
+			}
+			return l.finishNumber(token.TokenNumber)
+		case 'b', 'B':
+			l.advance()
+			if !l.skipDigits(isBinaryDigit) {
+				return l.errorToken("invalid binary literal")
+			}
+			return l.finishNumber(token.TokenNumber)
+		case 'o', 'O':
+			l.advance()
+			if !l.skipDigits(isOctalDigit) {
+				return l.errorToken("invalid octal literal")
+			}
+			return l.finishNumber(token.TokenNumber)
+		}
+	}
+
+	for isDigit(l.peek()) {
+		l.advance()
+	}
+
+	if l.peek() == '.' && isDigit(l.peekNext()) {
+		l.advance()
+		for isDigit(l.peek()) {
+			l.advance()
+		}
+		return l.finishNumber(token.TokenFloat)
+	}
+
+	return l.finishNumber(token.TokenNumber)
+}
+
+func (l *Lexer) finishNumber(kind token.TokenKind) token.Token {
+	if !l.isAtEnd() && isIdentifierStart(l.peek()) {
+		for !l.isAtEnd() && isIdentifierPart(l.peek()) {
+			l.advance()
+		}
+		return l.makeToken(token.TokenInvalid)
+	}
+	return l.makeToken(kind)
+}
+
+func (l *Lexer) scanString() token.Token {
+	for {
+		if l.isAtEnd() {
+			return l.errorToken("unterminated string")
+		}
+
+		switch l.peek() {
+		case '"':
+			l.advance()
+			return l.makeToken(token.TokenString)
+		case '\\':
+			l.advance()
+			if l.isAtEnd() {
+				return l.errorToken("unterminated string")
+			}
+			l.advance()
+		default:
+			l.advance()
+		}
+	}
+}
+
+func (l *Lexer) scanChar() token.Token {
+	count := 0
+
+	for {
+		if l.isAtEnd() {
+			return l.errorToken("unterminated char literal")
+		}
+
+		switch l.peek() {
+		case '\'':
+			l.advance()
+			switch count {
+			case 0:
+				return l.errorToken("empty char literal")
+			case 1:
+				return l.makeToken(token.TokenChar)
+			default:
+				return l.errorToken("char literal must contain a single character")
+			}
+		case '\\':
+			l.advance()
+			if l.isAtEnd() {
+				return l.errorToken("unterminated char literal")
+			}
+			l.advance()
+			count++
+		case '\n':
+			return l.errorToken("newline in char literal")
+		default:
+			l.advance()
+			count++
+		}
+	}
+}
+
+func (l *Lexer) advance() byte {
+	c := l.source[l.current]
+	l.current++
+	if c == '\n' {
+		l.line++
+		l.column = 1
+	} else {
+		l.column++
+	}
+	return c
+}
+
+func (l *Lexer) peek() byte {
+	if l.isAtEnd() {
+		return 0
+	}
+	return l.source[l.current]
+}
+
+func (l *Lexer) peekNext() byte {
+	if l.current+1 >= len(l.source) {
+		return 0
+	}
+	return l.source[l.current+1]
+}
+
+func (l *Lexer) match(expected byte) bool {
+	if l.isAtEnd() || l.source[l.current] != expected {
+		return false
+	}
+	l.advance()
+	return true
+}
+
+func (l *Lexer) isAtEnd() bool {
+	return l.current >= len(l.source)
+}
+
+func (l *Lexer) skipDigits(valid func(byte) bool) bool {
+	n := 0
+	for valid(l.peek()) {
+		l.advance()
+		n++
+	}
+	return n > 0
+}
+
+func (l *Lexer) makeToken(kind token.TokenKind) token.Token {
+	return token.Token{TokenType: kind, Lexeme: l.source[l.start:l.current]}
+}
+
+func (l *Lexer) errorToken(msg string) token.Token {
+	return token.Token{
+		TokenType: token.TokenError,
+		Lexeme:    fmt.Sprintf("line %d: %s", l.line, msg),
+	}
+}
+
+func isDigit(c byte) bool       { return c >= '0' && c <= '9' }
+func isHexDigit(c byte) bool    { return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') }
+func isBinaryDigit(c byte) bool { return c == '0' || c == '1' }
+func isOctalDigit(c byte) bool  { return c >= '0' && c <= '7' }
+func isAsciiLetter(c byte) bool { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') }
+func isIdentifierStart(c byte) bool {
+	return c == '_' || isAsciiLetter(c)
+}
+func isIdentifierPart(c byte) bool {
+	return isIdentifierStart(c) || isDigit(c)
+}
