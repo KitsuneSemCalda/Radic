@@ -77,12 +77,15 @@ jobs:
       
       - name: Run go vet
         run: go vet ./...
-      
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          args: --timeout=5m
+
+      # Temporarily disabled: golangci-lint fails to load export data for
+      # newer Go toolchains (go1.27). Re-enable once golangci-lint ships
+      # support for it.
+      # - name: Run golangci-lint
+      #   uses: golangci/golangci-lint-action@v3
+      #   with:
+      #     version: latest
+      #     args: --timeout=5m
 
   security:
     name: Security Scan
