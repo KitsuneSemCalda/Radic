@@ -76,9 +76,10 @@ func (tk TokenKind) String() string {
 	return "UNKNOWN"
 }
 
-// IsOperator returns true if the token is an arithmetic, logical, bitwise, or comparison operator
+// IsOperator returns true if the token is an arithmetic, logical, bitwise, comparison, compound, or increment/decrement operator
 func (tk TokenKind) IsOperator() bool {
-	return tk.IsArithmeticOperator() || tk.IsLogicalOperator() || tk.IsComparisonOperator() || tk.IsBitwiseOperator()
+	return tk.IsArithmeticOperator() || tk.IsLogicalOperator() || tk.IsComparisonOperator() ||
+		tk.IsBitwiseOperator() || tk.IsCompoundOperator() || tk.IsIncrementDecrement()
 }
 
 // IsArithmeticOperator returns true if the token is an arithmetic operator
@@ -129,10 +130,19 @@ func (tk TokenKind) IsKeyword() bool {
 	return false
 }
 
+// IsType returns true if the token is a language type
+func (tk TokenKind) IsType() bool {
+	switch tk {
+	case TokenNumber, TokenString, TokenChar, TokenFloat, TokenBool, TokenError, TokenVoid:
+		return true
+	}
+	return false
+}
+
 // IsLiteral returns true if the token is a literal value
 func (tk TokenKind) IsLiteral() bool {
 	switch tk {
-	case TokenNumber, TokenString, TokenChar, TokenFloat, TokenBool, TokenVoid:
+	case TokenNumber, TokenString, TokenChar, TokenFloat, TokenBool, TokenVoid, TokenError:
 		return true
 	}
 	return false

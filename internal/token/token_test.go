@@ -38,6 +38,8 @@ func TestIsOperator(t *testing.T) {
 		{TokenBitwiseAnd, true},
 		{TokenBitwiseOr, true},
 		{TokenBitwiseXor, true},
+		{TokenPlusEquals, true},
+		{TokenMinusMinus, true},
 		{TokenIdentifier, false},
 		{TokenIf, false},
 	}
@@ -159,6 +161,8 @@ func TestIsLiteral(t *testing.T) {
 		{TokenChar, true},
 		{TokenFloat, true},
 		{TokenBool, true},
+		{TokenVoid, true},
+		{TokenError, true},
 		{TokenIdentifier, false},
 		{TokenIf, false},
 	}
@@ -167,6 +171,32 @@ func TestIsLiteral(t *testing.T) {
 		t.Run(tt.kind.String(), func(t *testing.T) {
 			if got := tt.kind.IsLiteral(); got != tt.expected {
 				t.Errorf("IsLiteral() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsType(t *testing.T) {
+	tests := []struct {
+		kind     TokenKind
+		expected bool
+	}{
+		{TokenNumber, true},
+		{TokenString, true},
+		{TokenChar, true},
+		{TokenFloat, true},
+		{TokenBool, true},
+		{TokenVoid, true},
+		{TokenError, true},
+		{TokenIdentifier, false},
+		{TokenIf, false},
+		{TokenPlus, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.kind.String(), func(t *testing.T) {
+			if got := tt.kind.IsType(); got != tt.expected {
+				t.Errorf("IsType() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
