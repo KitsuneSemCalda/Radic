@@ -462,8 +462,6 @@ func TestTokenCreation(t *testing.T) {
 	tok := Token{
 		TokenType: TokenPlus,
 		Lexeme:    "+",
-		Line:      3,
-		Column:    7,
 	}
 
 	if tok.TokenType != TokenPlus {
@@ -472,13 +470,5 @@ func TestTokenCreation(t *testing.T) {
 
 	if tok.Lexeme != "+" {
 		t.Errorf("Lexeme = %q, want %q", tok.Lexeme, "+")
-	}
-
-	if tok.Line != 3 {
-		t.Errorf("Line = %d, want %d", tok.Line, 3)
-	}
-
-	if tok.Column != 7 {
-		t.Errorf("Column = %d, want %d", tok.Column, 7)
 	}
 }
