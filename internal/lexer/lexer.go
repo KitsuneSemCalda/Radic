@@ -44,6 +44,8 @@ func (l *Lexer) Tokenize() []token.Token {
 	}
 }
 
+// nextToken scans and returns the next token in the source, skipping
+// whitespace and comments along the way.
 func (l *Lexer) nextToken() token.Token {
 	for {
 		l.skipWhitespace()
@@ -178,6 +180,7 @@ func (l *Lexer) nextToken() token.Token {
 	}
 }
 
+// skipWhitespace advances past spaces, tabs, carriage returns, and newlines.
 func (l *Lexer) skipWhitespace() {
 	for !l.isAtEnd() {
 		switch l.source[l.current] {
@@ -189,6 +192,9 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
+// skipBlockComment consumes a /* ... */ comment, assuming the opening
+// "/*" has already been consumed. It reports false if the source ends
+// before the closing "*/" is found.
 func (l *Lexer) skipBlockComment() bool {
 	for !l.isAtEnd() {
 		if l.peek() == '*' && l.peekNext() == '/' {
@@ -201,6 +207,8 @@ func (l *Lexer) skipBlockComment() bool {
 	return false
 }
 
+// scanIdentifier consumes an identifier, returning the matching keyword
+// token if it is a reserved word or TokenIdentifier otherwise.
 func (l *Lexer) scanIdentifier() token.Token {
 	for !l.isAtEnd() && isIdentifierPart(l.peek()) {
 		l.advance()
@@ -211,6 +219,9 @@ func (l *Lexer) scanIdentifier() token.Token {
 	return l.makeToken(token.TokenIdentifier)
 }
 
+// scanNumber consumes a numeric literal in decimal, hexadecimal (0x),
+// binary (0b), or octal (0o) form, producing TokenFloat when a decimal
+// point is present or TokenNumber otherwise.
 func (l *Lexer) scanNumber() token.Token {
 	if l.source[l.start] == '0' {
 		switch l.peek() {
@@ -250,6 +261,9 @@ func (l *Lexer) scanNumber() token.Token {
 	return l.finishNumber(token.TokenNumber)
 }
 
+// finishNumber guards against a number being immediately followed by
+// identifier characters (e.g. "123abc"), returning TokenInvalid in that
+// case instead of the given kind.
 func (l *Lexer) finishNumber(kind token.TokenKind) token.Token {
 	if !l.isAtEnd() && isIdentifierStart(l.peek()) {
 		for !l.isAtEnd() && isIdentifierPart(l.peek()) {
@@ -260,6 +274,9 @@ func (l *Lexer) finishNumber(kind token.TokenKind) token.Token {
 	return l.makeToken(kind)
 }
 
+// scanString consumes a double-quoted string literal, assuming the
+// opening quote has already been consumed. Escaped characters are
+// skipped without interpretation.
 func (l *Lexer) scanString() token.Token {
 	for {
 		if l.isAtEnd() {
@@ -282,6 +299,10 @@ func (l *Lexer) scanString() token.Token {
 	}
 }
 
+// scanChar consumes a single-quoted character literal, assuming the
+// opening quote has already been consumed. It reports an error for
+// empty literals, literals containing more than one character, an
+// unterminated literal, or a raw newline inside the literal.
 func (l *Lexer) scanChar() token.Token {
 	count := 0
 
@@ -317,6 +338,8 @@ func (l *Lexer) scanChar() token.Token {
 	}
 }
 
+// advance consumes and returns the current byte, updating the tracked
+// line and column.
 func (l *Lexer) advance() byte {
 	c := l.source[l.current]
 	l.current++
@@ -329,6 +352,7 @@ func (l *Lexer) advance() byte {
 	return c
 }
 
+// peek returns the current byte without consuming it, or 0 at EOF.
 func (l *Lexer) peek() byte {
 	if l.isAtEnd() {
 		return 0
@@ -336,6 +360,8 @@ func (l *Lexer) peek() byte {
 	return l.source[l.current]
 }
 
+// peekNext returns the byte after the current one without consuming
+// it, or 0 if that would be out of range.
 func (l *Lexer) peekNext() byte {
 	if l.current+1 >= len(l.source) {
 		return 0
@@ -343,6 +369,8 @@ func (l *Lexer) peekNext() byte {
 	return l.source[l.current+1]
 }
 
+// match consumes the current byte and returns true if it equals
+// expected, otherwise it leaves the position unchanged and returns false.
 func (l *Lexer) match(expected byte) bool {
 	if l.isAtEnd() || l.source[l.current] != expected {
 		return false
@@ -351,10 +379,13 @@ func (l *Lexer) match(expected byte) bool {
 	return true
 }
 
+// isAtEnd reports whether the lexer has reached the end of the source.
 func (l *Lexer) isAtEnd() bool {
 	return l.current >= len(l.source)
 }
 
+// skipDigits consumes bytes for which valid returns true and reports
+// whether at least one byte was consumed.
 func (l *Lexer) skipDigits(valid func(byte) bool) bool {
 	n := 0
 	for valid(l.peek()) {
@@ -364,10 +395,14 @@ func (l *Lexer) skipDigits(valid func(byte) bool) bool {
 	return n > 0
 }
 
+// makeToken builds a token of the given kind whose lexeme is the source
+// text between start and the current position.
 func (l *Lexer) makeToken(kind token.TokenKind) token.Token {
 	return token.Token{TokenType: kind, Lexeme: l.source[l.start:l.current]}
 }
 
+// errorToken builds a TokenError token whose lexeme carries msg
+// prefixed with the current line number.
 func (l *Lexer) errorToken(msg string) token.Token {
 	return token.Token{
 		TokenType: token.TokenError,
@@ -375,6 +410,7 @@ func (l *Lexer) errorToken(msg string) token.Token {
 	}
 }
 
+// Character classification predicates used while scanning.
 func isDigit(c byte) bool       { return c >= '0' && c <= '9' }
 func isHexDigit(c byte) bool    { return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') }
 func isBinaryDigit(c byte) bool { return c == '0' || c == '1' }
