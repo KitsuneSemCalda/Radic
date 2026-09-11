@@ -1,3 +1,5 @@
+// Package lexer implements a lexical scanner that converts Radic source
+// code into a stream of tokens consumed by the parser.
 package lexer
 
 import (
@@ -5,6 +7,9 @@ import (
 	"radic/internal/token"
 )
 
+// Lexer scans a Radic source string and produces tokens for the parser.
+// It keeps track of the current read position along with the line and
+// column of that position, which is used for error reporting.
 type Lexer struct {
 	source  string
 	start   int
@@ -13,6 +18,7 @@ type Lexer struct {
 	column  int
 }
 
+// New creates a Lexer ready to scan source, starting at line 1, column 1.
 func New(source string) *Lexer {
 	return &Lexer{
 		source: source,
@@ -21,6 +27,9 @@ func New(source string) *Lexer {
 	}
 }
 
+// Tokenize scans the entire source and returns the resulting tokens.
+// The terminating EOF token is consumed internally and is not included
+// in the returned slice.
 func (l *Lexer) Tokenize() []token.Token {
 	var tokens []token.Token
 

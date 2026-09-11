@@ -2,6 +2,9 @@ package lexer
 
 import "radic/internal/token"
 
+// keywords maps reserved words recognized by the lexer to their
+// corresponding token kind. Any identifier not found in this map is
+// scanned as a plain TokenIdentifier.
 var keywords = map[string]token.TokenKind{
 	"if":       token.TokenIf,
 	"else":     token.TokenElse,
