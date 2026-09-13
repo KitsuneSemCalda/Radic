@@ -175,7 +175,7 @@ void main() {
     p.x = 3;
     p.y = 4;
 
-    if ((p.x > 0) and (p.y > 0)) {
+    if ((p.x > 0) && (p.y > 0)) {
         int total = sum(p.x, p.y);
     }
 }
