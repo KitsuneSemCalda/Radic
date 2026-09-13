@@ -1,3 +1,6 @@
+// Package parser implements a recursive-descent, precedence-climbing
+// parser that turns a stream of tokens produced by the lexer into a
+// Radic abstract syntax tree (see radic/internal/ast).
 package parser
 
 import (
@@ -7,17 +10,23 @@ import (
 	"radic/internal/token"
 )
 
+// Parser walks a fixed slice of tokens left-to-right, with one token of
+// lookahead, building an AST as it goes.
 type Parser struct {
 	src []token.Token
 	pos int
 }
 
+// Parse parses src as a complete Radic program and returns its AST, or
+// an error describing the first syntax error encountered.
 func Parse(src []token.Token) (*ast.Program, error) {
 	p := &Parser{src: src}
 
 	return p.parseProgram()
 }
 
+// isTypeToken reports whether k is one of the builtin type keywords
+// (number, string, char, float, bool, error, void).
 func isTypeToken(k token.TokenKind) bool {
 	switch k {
 	case token.TokenNumber, token.TokenString, token.TokenChar,
@@ -27,12 +36,16 @@ func isTypeToken(k token.TokenKind) bool {
 	return false
 }
 
+// isAssignOp reports whether k is a plain or compound assignment operator.
 func isAssignOp(k token.TokenKind) bool {
 	return k == token.TokenAssign || k.IsCompoundOperator()
 }
 
+// isAtEnd reports whether the parser has consumed every token up to EOF.
 func (p *Parser) isAtEnd() bool { return p.peek().TokenType == token.TokenEOF }
 
+// peek returns the next token to be consumed without advancing the
+// parser. It returns a synthetic EOF token once the input is exhausted.
 func (p *Parser) peek() token.Token {
 	if p.pos >= len(p.src) {
 		return token.Token{TokenType: token.TokenEOF}
@@ -40,6 +53,8 @@ func (p *Parser) peek() token.Token {
 	return p.src[p.pos]
 }
 
+// advance consumes and returns the next token, or a synthetic EOF token
+// once the input is exhausted.
 func (p *Parser) advance() token.Token {
 	t := p.peek()
 	if p.pos < len(p.src) {
@@ -48,6 +63,9 @@ func (p *Parser) advance() token.Token {
 	return t
 }
 
+// match consumes and returns true if the next token's kind is one of
+// kinds; otherwise it leaves the parser position unchanged and returns
+// false.
 func (p *Parser) match(kinds ...token.TokenKind) bool {
 	for _, k := range kinds {
 		if p.peek().TokenType == k {
@@ -58,6 +76,8 @@ func (p *Parser) match(kinds ...token.TokenKind) bool {
 	return false
 }
 
+// expect consumes the next token if it has kind k, returning an error
+// describing the mismatch otherwise.
 func (p *Parser) expect(k token.TokenKind) (token.Token, error) {
 	t := p.peek()
 	if t.TokenType != k {
@@ -66,21 +86,35 @@ func (p *Parser) expect(k token.TokenKind) (token.Token, error) {
 	return p.advance(), nil
 }
 
+// errorf builds a syntax error for token t, formatting msg the same way
+// as fmt.Sprintf.
 func (p *Parser) errorf(t token.Token, format string, args ...any) error {
 	return fmt.Errorf("%s at %q (%s)", fmt.Sprintf(format, args...), t.Lexeme, t.TokenType)
 }
 
+// nextIsIdentifier reports whether the token after the current one is an
+// identifier, used to disambiguate a user-defined type name from an
+// expression that happens to start with the same identifier.
 func (p *Parser) nextIsIdentifier() bool {
 	n := p.pos + 1
 	return n < len(p.src) && p.src[n].TokenType == token.TokenIdentifier
 }
 
+// isDeclStart reports whether the parser is positioned at the start of a
+// variable declaration: a type name, builtin or user-defined, followed
+// by another identifier. The trailing identifier check is required even
+// for builtin types because the lexer reuses their token kind for same-
+// named literals (e.g. TokenNumber is both the "number" type keyword and
+// a numeric literal like "42"), which would otherwise be indistinguishable
+// from a declaration by kind alone.
 func (p *Parser) isDeclStart() bool {
 	t := p.peek()
 	return (isTypeToken(t.TokenType) || t.TokenType == token.TokenIdentifier) &&
 		p.nextIsIdentifier()
 }
 
+// parseProgram parses a full source file as a sequence of top-level
+// declarations.
 func (p *Parser) parseProgram() (*ast.Program, error) {
 	prog := &ast.Program{}
 	for !p.isAtEnd() {
@@ -93,6 +127,8 @@ func (p *Parser) parseProgram() (*ast.Program, error) {
 	return prog, nil
 }
 
+// parseDeclaration parses a single top-level declaration: a function,
+// struct, union, enum, or variable declaration.
 func (p *Parser) parseDeclaration() (ast.Decl, error) {
 	switch p.peek().TokenType {
 	case token.TokenFunc:
@@ -113,6 +149,8 @@ func (p *Parser) parseDeclaration() (ast.Decl, error) {
 	}
 }
 
+// parseAggregate parses a struct or union declaration; kind selects
+// which keyword introduces it.
 func (p *Parser) parseAggregate(kind token.TokenKind) (ast.Decl, error) {
 	p.advance()
 	nameTok, err := p.expect(token.TokenIdentifier)
@@ -132,6 +170,8 @@ func (p *Parser) parseAggregate(kind token.TokenKind) (ast.Decl, error) {
 	return &ast.UnionDecl{Name: nameTok.Lexeme, Fields: fields}, nil
 }
 
+// parseFields parses the semicolon-terminated field list of a struct or
+// union body, up to and including the closing brace.
 func (p *Parser) parseFields() ([]ast.Field, error) {
 	var fields []ast.Field
 	for !p.isAtEnd() && p.peek().TokenType != token.TokenRightBrace {
@@ -151,6 +191,8 @@ func (p *Parser) parseFields() ([]ast.Field, error) {
 	return fields, nil
 }
 
+// parseEnumDecl parses an enum declaration and its comma-separated
+// variants, each with an optional explicit value.
 func (p *Parser) parseEnumDecl() (*ast.EnumDecl, error) {
 	p.advance()
 	nameTok, err := p.expect(token.TokenIdentifier)
@@ -185,6 +227,8 @@ func (p *Parser) parseEnumDecl() (*ast.EnumDecl, error) {
 	return decl, nil
 }
 
+// parseFuncDecl parses a function declaration: its name, parameter list,
+// optional return type, and body.
 func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
 	p.advance()
 	nameTok, err := p.expect(token.TokenIdentifier)
@@ -216,6 +260,10 @@ func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
 	return fn, err
 }
 
+// parseVarDecl parses a variable declaration with its type, name, and
+// optional initializer. If semi is true, it also consumes the
+// terminating semicolon; callers parsing a for-loop initializer pass
+// false since the semicolon there is consumed by the caller.
 func (p *Parser) parseVarDecl(semi bool) (*ast.VarDecl, error) {
 	typ := p.parseType()
 	nameTok, err := p.expect(token.TokenIdentifier)
@@ -238,6 +286,8 @@ func (p *Parser) parseVarDecl(semi bool) (*ast.VarDecl, error) {
 	return d, nil
 }
 
+// parseType parses a type name, marking it as Builtin when it names one
+// of the primitive types.
 func (p *Parser) parseType() ast.Name {
 	t := p.advance()
 	if isTypeToken(t.TokenType) {
@@ -246,6 +296,7 @@ func (p *Parser) parseType() ast.Name {
 	return ast.Name{Lexeme: t.Lexeme}
 }
 
+// parseBlock parses a brace-delimited sequence of statements.
 func (p *Parser) parseBlock() (*ast.Block, error) {
 	if _, err := p.expect(token.TokenLeftBrace); err != nil {
 		return nil, err
@@ -264,6 +315,8 @@ func (p *Parser) parseBlock() (*ast.Block, error) {
 	return b, nil
 }
 
+// parseStatement parses a single statement, dispatching on the next
+// token's kind.
 func (p *Parser) parseStatement() (ast.Stmt, error) {
 	switch p.peek().TokenType {
 	case token.TokenLeftBrace:
@@ -302,6 +355,8 @@ func (p *Parser) parseStatement() (ast.Stmt, error) {
 	}
 }
 
+// parseIf parses an if statement, including an optional else branch or
+// else-if chain.
 func (p *Parser) parseIf() (ast.Stmt, error) {
 	p.advance()
 	if _, err := p.expect(token.TokenLeftParen); err != nil {
@@ -329,6 +384,7 @@ func (p *Parser) parseIf() (ast.Stmt, error) {
 	return st, nil
 }
 
+// parseWhile parses a while loop.
 func (p *Parser) parseWhile() (ast.Stmt, error) {
 	p.advance()
 	if _, err := p.expect(token.TokenLeftParen); err != nil {
@@ -348,6 +404,8 @@ func (p *Parser) parseWhile() (ast.Stmt, error) {
 	return &ast.While{Cond: cond, Body: body}, nil
 }
 
+// parseFor parses a C-style for loop, whose init, condition, and post
+// clauses are each optional.
 func (p *Parser) parseFor() (ast.Stmt, error) {
 	p.advance()
 	if _, err := p.expect(token.TokenLeftParen); err != nil {
@@ -400,6 +458,7 @@ func (p *Parser) parseFor() (ast.Stmt, error) {
 	return f, nil
 }
 
+// parseSwitch parses a switch statement and its case and default clauses.
 func (p *Parser) parseSwitch() (ast.Stmt, error) {
 	p.advance()
 	if _, err := p.expect(token.TokenLeftParen); err != nil {
@@ -446,6 +505,7 @@ func (p *Parser) parseSwitch() (ast.Stmt, error) {
 	return sw, nil
 }
 
+// parseReturn parses a return statement, whose value is optional.
 func (p *Parser) parseReturn() (ast.Stmt, error) {
 	p.advance()
 	r := &ast.Return{}
@@ -462,6 +522,9 @@ func (p *Parser) parseReturn() (ast.Stmt, error) {
 	return r, nil
 }
 
+// parseExprOrAssign parses a statement that starts with an expression,
+// which is either a bare expression statement or an assignment to an
+// identifier or member expression, consuming the terminating semicolon.
 func (p *Parser) parseExprOrAssign() (ast.Stmt, error) {
 	s, err := p.parseSimpleStmt()
 	if err != nil {
@@ -473,6 +536,11 @@ func (p *Parser) parseExprOrAssign() (ast.Stmt, error) {
 	return s, nil
 }
 
+// parseSimpleStmt parses a bare expression or an assignment to an
+// identifier or member expression, without consuming any terminator.
+// It is shared by parseExprOrAssign, which consumes a trailing
+// semicolon, and parseFor's post clause, which is instead terminated by
+// the loop's closing parenthesis.
 func (p *Parser) parseSimpleStmt() (ast.Stmt, error) {
 	x, err := p.parseExpression(1)
 	if err != nil {
@@ -497,6 +565,8 @@ func (p *Parser) parseSimpleStmt() (ast.Stmt, error) {
 	return &ast.ExprStmt{X: x}, nil
 }
 
+// parseExpression parses a binary expression using precedence climbing,
+// only consuming operators whose precedence is at least minPrec.
 func (p *Parser) parseExpression(minPrec int) (ast.Expr, error) {
 	left, err := p.parseUnary()
 	if err != nil {
@@ -517,6 +587,8 @@ func (p *Parser) parseExpression(minPrec int) (ast.Expr, error) {
 	}
 }
 
+// parseUnary parses a prefix unary expression, or falls through to a
+// postfix expression when the next token is not a unary operator.
 func (p *Parser) parseUnary() (ast.Expr, error) {
 	t := p.peek()
 	switch t.TokenType {
@@ -533,6 +605,8 @@ func (p *Parser) parseUnary() (ast.Expr, error) {
 	return p.parsePostfix()
 }
 
+// parsePostfix parses a primary expression followed by any number of
+// calls, member accesses, and postfix increment/decrement operators.
 func (p *Parser) parsePostfix() (ast.Expr, error) {
 	x, err := p.parsePrimary()
 	if err != nil {
@@ -561,6 +635,8 @@ func (p *Parser) parsePostfix() (ast.Expr, error) {
 	}
 }
 
+// parseCall parses the parenthesized, comma-separated argument list of a
+// call expression whose callee, fn, has already been parsed.
 func (p *Parser) parseCall(fn ast.Expr) (ast.Expr, error) {
 	p.advance()
 	call := &ast.Call{Fn: fn}
@@ -580,6 +656,7 @@ func (p *Parser) parseCall(fn ast.Expr) (ast.Expr, error) {
 	return call, nil
 }
 
+// parsePrimary parses a literal, identifier, or parenthesized expression.
 func (p *Parser) parsePrimary() (ast.Expr, error) {
 	t := p.advance()
 	switch t.TokenType {
