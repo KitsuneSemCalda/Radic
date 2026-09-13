@@ -59,6 +59,19 @@ func TestParseVarDeclBuiltinType(t *testing.T) {
 	}
 }
 
+func TestParseVarDeclPinnedWidthTypes(t *testing.T) {
+	tests := []string{"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"}
+	for _, name := range tests {
+		t.Run(name, func(t *testing.T) {
+			prog := parseSrc(t, name+" x = 1;")
+			d := prog.Decls[0].(*ast.VarDecl)
+			if d.Type != (ast.Name{Lexeme: name, Builtin: true}) {
+				t.Errorf("Type = %+v, want {%s true}", d.Type, name)
+			}
+		})
+	}
+}
+
 func TestParseVarDeclWithoutInit(t *testing.T) {
 	prog := parseSrc(t, "number x;")
 	d := prog.Decls[0].(*ast.VarDecl)
@@ -780,6 +793,14 @@ func TestIsTypeToken(t *testing.T) {
 		{token.TokenBool, true},
 		{token.TokenError, true},
 		{token.TokenVoid, true},
+		{token.TokenI8, true},
+		{token.TokenI16, true},
+		{token.TokenI32, true},
+		{token.TokenI64, true},
+		{token.TokenU8, true},
+		{token.TokenU16, true},
+		{token.TokenU32, true},
+		{token.TokenU64, true},
 		{token.TokenIdentifier, false},
 		{token.TokenPlus, false},
 	}

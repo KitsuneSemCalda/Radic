@@ -33,4 +33,12 @@ var keywords = map[string]token.TokenKind{
 	"bool":   token.TokenBool,
 	"error":  token.TokenError,
 	"void":   token.TokenVoid,
+	"i8":     token.TokenI8,
+	"i16":    token.TokenI16,
+	"i32":    token.TokenI32,
+	"i64":    token.TokenI64,
+	"u8":     token.TokenU8,
+	"u16":    token.TokenU16,
+	"u32":    token.TokenU32,
+	"u64":    token.TokenU64,
 }

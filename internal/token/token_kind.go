@@ -13,6 +13,14 @@ func (tk TokenKind) String() string {
 		TokenFloat:             "FLOAT",
 		TokenBool:              "BOOL",
 		TokenVoid:              "VOID",
+		TokenI8:                "I8",
+		TokenI16:               "I16",
+		TokenI32:               "I32",
+		TokenI64:               "I64",
+		TokenU8:                "U8",
+		TokenU16:               "U16",
+		TokenU32:               "U32",
+		TokenU64:               "U64",
 		TokenError:             "ERROR",
 		TokenPlus:              "PLUS",
 		TokenMinus:             "MINUS",
@@ -133,7 +141,8 @@ func (tk TokenKind) IsKeyword() bool {
 // IsType returns true if the token is a language type
 func (tk TokenKind) IsType() bool {
 	switch tk {
-	case TokenNumber, TokenString, TokenChar, TokenFloat, TokenBool, TokenError, TokenVoid:
+	case TokenNumber, TokenString, TokenChar, TokenFloat, TokenBool, TokenError, TokenVoid,
+		TokenI8, TokenI16, TokenI32, TokenI64, TokenU8, TokenU16, TokenU32, TokenU64:
 		return true
 	}
 	return false
@@ -239,6 +248,14 @@ const (
 	TokenBool
 	TokenError
 	TokenVoid
+	TokenI8
+	TokenI16
+	TokenI32
+	TokenI64
+	TokenU8
+	TokenU16
+	TokenU32
+	TokenU64
 
 	// Algebraic Expression
 	TokenPlus

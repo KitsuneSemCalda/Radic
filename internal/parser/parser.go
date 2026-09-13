@@ -25,12 +25,14 @@ func Parse(src []token.Token) (*ast.Program, error) {
 	return p.parseProgram()
 }
 
-// isTypeToken reports whether k is one of the builtin type keywords
-// (number, string, char, float, bool, error, void).
+// isTypeToken reports whether k is a builtin type keyword: number,
+// string, char, float, bool, error, void, or a pinned width (i8..u64).
 func isTypeToken(k token.TokenKind) bool {
 	switch k {
 	case token.TokenNumber, token.TokenString, token.TokenChar,
-		token.TokenFloat, token.TokenBool, token.TokenError, token.TokenVoid:
+		token.TokenFloat, token.TokenBool, token.TokenError, token.TokenVoid,
+		token.TokenI8, token.TokenI16, token.TokenI32, token.TokenI64,
+		token.TokenU8, token.TokenU16, token.TokenU32, token.TokenU64:
 		return true
 	}
 	return false
